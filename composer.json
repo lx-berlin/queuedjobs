@@ -1,0 +1,35 @@
+{
+    "name": "lxberlin/queuedjobs",
+    "description": "Job scheduling for Laravel",
+    "keywords": ["laravel", "queuedjobs", "cronjob", "cronmanager"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Marc Liebig",
+            "email": "marc.liebig@gmx.eu"
+        },
+	    {
+            "name": "Gunnar Matz",
+            "email": "g.matz@gmx.de"
+        },
+        {
+            "name": "lx-berlin",
+            "email": "alexk@netefx.de"
+        }
+    ],
+    "require": {
+        "php": ">=5.3.0"
+    },
+    "require-dev": {
+        "illuminate/support": "4.0.x"
+    },
+    "autoload": {
+        "classmap": [
+            "src/migrations"
+        ],
+        "psr-0": {
+            "lxberlin\\QueuedJobs": "src/"
+        }
+    },
+    "minimum-stability": "dev"
+}
