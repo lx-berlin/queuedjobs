@@ -234,17 +234,17 @@ The starting five asterisks are the cron expressions. We want to start our Cron 
 We set up a few basic testing scenarios that might be helpful for you as well to understand what happens inside.
 
 Scenario1: Different jobs are executed by different timers
-![Scenario 1](test1.jpg)
+![Scenario 1](test1.jpeg)
 
 
 
 
 Scenario 2: All jobs are executed by the same timer
-![Alt text](/test2.jpg)
+![Alt text](/test2.jpeg)
 
 
 Scenario 3: Restart of stalled jobs
-![Alt text](/test3.jpg)
+![Alt text](/test3.jpeg)
 
 
 
