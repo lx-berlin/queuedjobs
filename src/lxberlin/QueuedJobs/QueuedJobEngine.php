@@ -14,7 +14,7 @@
  */
 
 namespace lxberlin\QueuedJobs;
-use lxberlin\QueuedJobs\QueuedJobLogger;
+
 use lxberlin\QueuedJobs\models\CompletedJob;
 use lxberlin\QueuedJobs\models\Manager;
 use lxberlin\QueuedJobs\models\ScheduledJob;
@@ -79,6 +79,7 @@ class QueuedJobEngine {
         $allScheduledJobs = ScheduledJob::all();
         foreach ($allScheduledJobs as $scheduledJob) {
             if ($scheduledJob->name === $name) {
+                echo 'Could not add job -> duplicate name';
                 self::$logger->log('info', 'Could not add job to datebase (name is not unique):'.self::logJob($scheduledJob));
                 return false;
             }
@@ -105,6 +106,8 @@ class QueuedJobEngine {
         $scheduledJob->save();
 
         self::$logger->log('info', 'Added job to database:'.self::logJob($scheduledJob));
+
+        echo 'Added job';
     }
 
     /**
@@ -121,12 +124,14 @@ class QueuedJobEngine {
         foreach ($allScheduledJobs as $scheduledJob) {
             if ($scheduledJob->name === $name) {
                 self::$logger->log('info', 'Found job to delete:'.self::logJob($scheduledJob));
+                echo 'Removed job';
                 $scheduledJob->delete();
                 return null;
             }
         }
 
         self::$logger->log('info', 'Could not find job to delete:'.$name);
+        echo 'Could not find job';
 
         return false;
     }
@@ -169,146 +174,136 @@ class QueuedJobEngine {
         $errorJobs = array();
         $beforeAll = microtime(true);
 
-        $allScheduledJobs = ScheduledJob::all();
+        while (true) {
 
+            self::$logger->log('info', 'Now checking for executable jobs...');
 
-        foreach ($allScheduledJobs as $scheduledJob) {
-            $name              = $scheduledJob->name;
-            $isEnabled         = $scheduledJob->enabled;
-            $state             = $scheduledJob->state;
-            $restartCount      = $scheduledJob->restart_count;
-            $jobClass          = $scheduledJob->jobclass;
-            $serializedVars    = $scheduledJob->serializedVars;
-            $executionDate     = DateTime::createFromFormat('Y-m-d H:i:s', $scheduledJob->execution_date);
-            $started_date      = $scheduledJob->started_date;
-            $progress          = $scheduledJob->progress;
-            $lastProgress      = $scheduledJob->last_progress;
-            $lastProgressDate  = $scheduledJob->last_progress_date;
+            $allScheduledJobs = ScheduledJob::all();
 
-            // Add the new created  job to the many other little  jobs
-            array_push(self::$cronJobs, array(
-                'name'              => $name,
-                'enabled'           => $isEnabled == 1 ? true : false,
-                'state'             => $state,
-                'restart_count'     => $restartCount,
-                'jobClass'          => $jobClass,
-                'serializedVars'    => $serializedVars,
-                'execution_date'    => $executionDate,
-                'started_date'      => $started_date,
-                'progress'          => $progress,
-                'last_progress'     => $lastProgress,
-                'last_progress_date' => $lastProgressDate
-            ));
+            if ($allScheduledJobs->isEmpty()) break;
 
-        }
+            $foundJobToExecute = false;
+            foreach ($allScheduledJobs as $scheduledJob) {
+                $name              = $scheduledJob->name;
+                $isEnabled         = $scheduledJob->enabled;
+                $db_state          = $scheduledJob->state;
+                $restartCount      = $scheduledJob->restart_count;
+                $jobClass          = $scheduledJob->jobclass;
+                $serializedVars    = $scheduledJob->serializedVars;
+                $executionDate     = DateTime::createFromFormat('Y-m-d H:i:s', $scheduledJob->execution_date);
+                $progress          = $scheduledJob->progress;
+                $lastProgress      = $scheduledJob->last_progress;
 
+                self::$logger->log('info', 'Now checking job:'.self::logJob($scheduledJob));
 
-        // For all defined queuedjobs jobs run this
-        foreach (self::$cronJobs as $job) {
-            self::$logger->log('info', 'Now checking job:'.self::logJob($job));
+                // if the job is already running then check if it's still progressing and not stalled.
+                // if the job is not already running, then try to start etc.:
+                if ($db_state == JobState::RUNNING) {
 
+                    self::$logger->log('info', 'Job is already running :'.self::logJob($scheduledJob));
 
-            // if the job is already running then check if it's still progressing and not stalled.
-            // if the job is not already running, then try to start etc.:
-            $db_state        = $job['state'];
-            $progress        = $job['progress'];
+                    if ($progress > -1 && $progress <= $lastProgress) {
+                        self::$logger->log('warning', 'Job seems to be stalled:'.self::logJob($scheduledJob));
 
+                        // ATTENTION: In this case we assume that the job hangs for a long while or has even been completely killed by the operating system
+                        // THE PROBLEM: if we think that this job has been executed and we then re-start it but the truth is that this job resumes after a while,
+                        // then it could be executed TWICE!
 
-            if ($db_state == JobState::RUNNING) {
+                        // remove this job from the queue ...
+                        self::remove($name);
+                        // ... and then add it again with the current progress parameter:
+                        self::add($name, $executionDate, $jobClass, $serializedVars, $isEnabled, $progress, $restartCount + 1);
 
-                self::$logger->log('info', 'Job is already running :'.self::logJob($job));
+                        self::$logger->log('info', 'Requeued job:'.self::logJob($scheduledJob));
 
-                if ($progress > -1 && $progress <= $lastProgress) {
-                    self::$logger->log('warning', 'Job seems to be stalled:'.self::logJob($job));
+                    }
+                    else {
 
-                    // ATTENTION: In this case we assume that the job hangs for a long while or has even been completely killed by the operating system
-                    // THE PROBLEM: if we think that this job has been executed and we then re-start it but the truth is that this job resumes after a while,
-                    // then it could be executed TWICE!
+                        self::$logger->log('info', 'Trying to update last_progress for job:'.self::logJob($scheduledJob));
 
-                    // remove this job from the queue ...
-                    self::remove($job['name']);
-                    // ... and then add it again with the current progress parameter:
-                    self::add($job['name'], $job['execution_date'], $job['jobClass'], $job['serializedVars'], $job['enabled'], $progress, $job['restart_count'] + 1);
+                        // now write last_progress to scheduled job:
+                        foreach ($allScheduledJobs as $scheduledJob) {
+                            if ($scheduledJob->name === $name) {
 
-                    self::$logger->log('info', 'Requeued job:'.self::logJob($job));
+                                self::$logger->log('info', 'Updated last_progress for job:'.self::logJob($scheduledJob));
 
+                                $scheduledJob->last_progress  = $progress;
+                                $scheduledJob->save();
+                                break;
+                            }
+                        }
+                    }
                 }
                 else {
+                    // If the job is enabled and if the time for this job has come :
+                    if ($isEnabled == 1 && self::isJobOverDue($executionDate)) {
 
-                    self::$logger->log('info', 'Trying to update last_progress for job:'.self::logJob($job));
+                        $foundJobToExecute = true;
 
-                    // now write last_progress to scheduled job:
-                    foreach ($allScheduledJobs as $scheduledJob) {
-                        if ($scheduledJob->name === $job['name']) {
+                        self::$logger->log('info', 'Starting job:'.self::logJob($scheduledJob));
 
-                            self::$logger->log('info', 'Updated last_progress for job:'.self::logJob($job));
+                        $started_date = new \DateTime();
 
-                            $scheduledJob->last_progress  = $progress;
-                            $scheduledJob->save();
-                            break;
+                        // now write started_date to original scheduled job:
+                        foreach ($allScheduledJobs as $scheduledJob) {
+                            if ($scheduledJob->name === $name) {
+                                $scheduledJob->state        = JobState::RUNNING;
+                                $scheduledJob->started_date = $started_date;
+                                $scheduledJob->save();
+                                break;
+                            }
                         }
+
+
+                        $myInstance = new $jobClass();
+
+                        // get the context vars:
+                        $vars = unserialize($serializedVars);
+
+                        // setup:
+                        self::$logger->log('info', 'Now setting up job:'.self::logJob($scheduledJob));
+                        $myInstance->setup($vars, self::$logger);
+
+                        // Get the start time of the job runtime
+                        $beforeOne = microtime(true);
+
+                        // Run the function and save the return to $return - all the magic goes here
+                        self::$logger->log('info', 'Now executing job:'.self::logJob($scheduledJob));
+                        $return = $myInstance->execute($vars, $progress, self::$logger);
+
+                        // Get the end time of the job runtime
+                        $afterOne = microtime(true);
+
+                        // clean up
+                        self::$logger->log('info', 'Now cleaning up job:'.self::logJob($scheduledJob));
+                        $myInstance->cleanUp($vars, self::$logger);
+
+                        // If the function returned not null then we assume that there was an error
+                        if ($return !== null) {
+                            // Add to error array
+                            array_push($errorJobs, array('name' => $name, 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne)));
+                        }
+
+                        // Push the information of the ran queuedjobs job to the allJobs array (including name, return value, runtime)
+                        array_push($allJobs, array('name' => $name, 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne)));
+
+                        // finally remove the job from the queue.
+                        self::remove($name);
+                        self::$logger->log('info', 'Now removed job from queue:'.self::logJob($scheduledJob));
+
+                        // after one job has been executed try to find the next one (because another manager could have started some jobs in the meantime):
+                        break;
+
                     }
                 }
+
             }
-            else {
-                // If the job is enabled and if the time for this job has come :
-                if ($job['enabled'] === true && self::isJobOverDue($job['execution_date'])) {
 
-                    self::$logger->log('info', 'Starting job:'.self::logJob($job));
-
-                    $started_date = new \DateTime();
-
-                    // now write started_date to original scheduled job:
-                    foreach ($allScheduledJobs as $scheduledJob) {
-                        if ($scheduledJob->name === $job['name']) {
-                            $scheduledJob->state        = JobState::RUNNING;
-                            $scheduledJob->started_date = $started_date;
-                            $scheduledJob->save();
-                            break;
-                        }
-                    }
-
-
-                    $jobClass = $job['jobClass'];
-                    $myInstance = new $jobClass();
-
-                    // get the context vars:
-                    $serializedVars = $job['serializedVars'];
-                    $vars = unserialize($serializedVars);
-
-                    // setup:
-                    self::$logger->log('info', 'Now setting up job:'.self::logJob($job));
-                    $myInstance->setup($vars, self::$logger);
-
-                    // Get the start time of the job runtime
-                    $beforeOne = microtime(true);
-
-                    // Run the function and save the return to $return - all the magic goes here
-                    self::$logger->log('info', 'Now executing job:'.self::logJob($job));
-                    $return = $myInstance->execute($vars, $progress, self::$logger);
-
-                    // Get the end time of the job runtime
-                    $afterOne = microtime(true);
-
-                    // clean up
-                    self::$logger->log('info', 'Now cleaning up job:'.self::logJob($job));
-                    $myInstance->cleanUp($vars, self::$logger);
-
-                    // If the function returned not null then we assume that there was an error
-                    if ($return !== null) {
-                        // Add to error array
-                        array_push($errorJobs, array('name' => $job['name'], 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne)));
-                    }
-
-                    // Push the information of the ran queuedjobs job to the allJobs array (including name, return value, runtime)
-                    array_push($allJobs, array('name' => $job['name'], 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne)));
-
-                    // finally remove the job from the queue.
-                    self::remove($job['name']);
-                    self::$logger->log('info', 'Now removed job from queue:'.self::logJob($job));
-                }
-            }
+            if (!$foundJobToExecute) break;
         }
+
+
+        echo 'Done';
 
         // Get the end runtime for all the queuedjobs jobs
         $afterAll = microtime(true);
@@ -442,7 +437,7 @@ class QueuedJobEngine {
      * @param  \Monolog\Logger $logger optional The Monolog logger object which will be used for queuedjobs logging - if this parameter is null the logger will be removed
      */
     public static function setLogger(\Monolog\Logger $logger = null) {
-       $myCronLogger = new \lxberlin\Cron\QueuedJobLogger();
+       $myCronLogger = new QueuedJobLogger();
        $myCronLogger->setLogger($logger);
        self::$logger = $myCronLogger;
     }
@@ -481,7 +476,6 @@ class QueuedJobEngine {
      */
     public static function isDatabaseLogging() {
         $databaseLogging = \Config::get('queuedjobs::databaseLogging');
-        print_r($databaseLogging);
         if (is_bool($databaseLogging)) {
             return $databaseLogging;
         } else {
@@ -517,17 +511,6 @@ class QueuedJobEngine {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Reset the QueuedJobs class
-     * Remove the cons array and the logger object
-     *
-     * @static
-     */
-    public static function reset() {
-        self::$cronJobs = array();
-        self::$logger = null;
     }
 
     /**

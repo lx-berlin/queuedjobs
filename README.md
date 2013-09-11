@@ -1,4 +1,4 @@
-# ![alt text] Queued Jobs ![project status]
+# Queued Jobs
 Job scheduling for Laravel
 
 QueuedJobs can be used for easily and conveniently performing queued jobs in Laravel without using Artisan commands.
@@ -22,6 +22,7 @@ Furthermore you can use a Monolog logger instance.
 - [|--Reset](#reset)
 - [|--Changing default values](#defaultvalues)
 - [Full example](#fullexample)
+- [Testing scenarios](#testing)
 
 ---
 
@@ -224,6 +225,28 @@ To configure a wget web request by using `crontab -e` or a control panel softwar
 ```
 
 The starting five asterisks are the cron expressions. We want to start our Cron management every minute in this example. The tool `wget` retrieves files using HTTP, HTTPS and FTP. Using the parameter `-O -` causes that the output of the web request will be sent to STDOUT (standard output). By adding `>/dev/null` we instruct standard output to be redirect to a black hole (/dev/null). By adding `2>&1` we instruct STDERR (standard errors) to also be sent to STDOUT (in this example this is /dev/null). So it will load our website at the Cron route every minute, but never write a file anywhere.
+
+---
+
+<a name="testing"></a>
+## Testing scenarios
+
+We set up a few basic testing scenarios that might be helpful for you as well to understand what happens inside.
+
+Scenario1: Different jobs are executed by different timers
+![Scenario 1](test1.jpg)
+
+
+
+
+Scenario 2: All jobs are executed by the same timer
+![Alt text](/test2.jpg)
+
+
+Scenario 3: Restart of stalled jobs
+![Alt text](/test3.jpg)
+
+
 
 ---
 

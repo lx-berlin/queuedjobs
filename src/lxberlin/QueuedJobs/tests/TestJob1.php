@@ -28,7 +28,7 @@ class TestJob1 implements QueuedJobExecutable {
     function execute($additionalExecParams, $lastProgress, $logger) {
         $logger->log('info', 'Executing job ...');
 
-        for ($i = $lastProgress + 1;  $i < 10; $i++) {
+        for ($i = $lastProgress + 1;  $i < 30; $i++) {
 
             // do something useful here
             sleep(1);
