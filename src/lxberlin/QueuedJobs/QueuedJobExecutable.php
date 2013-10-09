@@ -17,6 +17,14 @@ namespace lxberlin\QueuedJobs;
 interface QueuedJobExecutable {
 
     /**
+     * This method should be used to get the unique name of the job
+     * @param $additionalExecParams the context variables
+     * @param $logger a logger
+     * @return String unique name
+     */
+    function getUniqueName($additionalExecParams, $logger);
+
+    /**
      * This method should be used to prepare the execution of the job and do anything which is necessary *before* execution of the job
      * don't forget to log your progress
      * @param $additionalExecParams the context variables

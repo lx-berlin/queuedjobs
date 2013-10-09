@@ -54,7 +54,6 @@ class QueuedJobEngine {
      * Add a job
      *
      * @static
-     * @param  string $name The name for the queuedjobs job - must be unique
      * @param  DateTime $dateTime The date and time when to execute this job
      * @param  $jobClass The name of the job class conforming to QueuedJobExecutable that includes an executable function
      * @param  $additionalExecParams array of additional execution params
@@ -63,7 +62,9 @@ class QueuedJobEngine {
      * @param int $restartCount the iteration count how many times this job has been restarted so far
      * @return void|false Return void if everything worked and false if there is any error
      */
-    public static function add($name, $dateTime, $jobClass, $additionalExecParams = null, $isEnabled = true, $progress = -1, $restartCount = 0) {
+    public static function add($dateTime, $jobClass, $additionalExecParams = null, $isEnabled = true, $progress = -1, $restartCount = 0) {
+
+        self::initLoggerAndConfig();
 
         // Check if the given datetime is set
         if (!isset($dateTime)) {
@@ -74,6 +75,11 @@ class QueuedJobEngine {
         if (!is_bool($isEnabled)) {
             $isEnabled = true;
         }
+
+        // instantiate job to get the name:
+        $job = new $jobClass;
+        $name= $job->getUniqueName($additionalExecParams, self::$logger);
+
 
         // Check if the name is unique
         $allScheduledJobs = ScheduledJob::all();
@@ -119,6 +125,8 @@ class QueuedJobEngine {
      */
     public static function remove($name) {
 
+        self::initLoggerAndConfig();
+
         $allScheduledJobs = ScheduledJob::all();
 
         foreach ($allScheduledJobs as $scheduledJob) {
@@ -145,6 +153,8 @@ class QueuedJobEngine {
      * @return array Return an array with the rundate, runtime, errors and a result queuedjobs job array (with name, function return value, rundate and runtime)
      */
     public static function run() {
+
+        self::initLoggerAndConfig();
 
         // Get the rundate
         $runDate = new \DateTime();
@@ -260,9 +270,11 @@ class QueuedJobEngine {
                         // get the context vars:
                         $vars = unserialize($serializedVars);
 
-                        // setup:
-                        self::$logger->log('info', 'Now setting up job:'.self::logJob($scheduledJob));
-                        $myInstance->setup($vars, self::$logger);
+                        // setup (execute only when first run (NOT with restarted jobs)):
+                        if ($restartCount == 0) {
+                            self::$logger->log('info', 'Now setting up job:'.self::logJob($scheduledJob));
+                            $myInstance->setup($vars, self::$logger);
+                        }
 
                         // Get the start time of the job runtime
                         $beforeOne = microtime(true);
@@ -373,6 +385,8 @@ class QueuedJobEngine {
      */
     public static function updateProgress($jobName, $progress) {
 
+        self::initLoggerAndConfig();
+
         self::$logger->log('info', 'Updating progress for job:'.$jobName.': '.$progress);
 
         $allScheduledJobs = ScheduledJob::all();
@@ -387,48 +401,6 @@ class QueuedJobEngine {
         }
     }
 
-
-    /**
-     * Save queuedjobs jobs from an array to the database
-     *
-     * @static
-     * @param  array $jobArray This array holds all the ran queuedjobs jobs which should be logged to database - entry structure must be job['name'], job['return'], job['runtime']
-     * @param  int $managerId The id of the saved manager database object which cares about the jobs
-     */
-    private static function saveJobsFromArrayToDatabase($jobArray, $managerId) {
-
-        foreach ($jobArray as $job) {
-            $jobEntry = new CompletedJob();
-            $jobEntry->name = $job['name'];
-
-            // Get the type of the returned value
-            $returnType = gettype($job['return']);
-
-            // If the type is NULL there was no error running this job - insert empty string
-            if ($returnType === 'NULL') {
-                $jobEntry->return = '';
-                // If the tyoe is boolean save the value as string
-            } else if ($returnType === 'boolean') {
-                if ($job['return']) {
-                    $jobEntry->return = 'true';
-                } else {
-                    $jobEntry->return = 'false';
-                }
-                // If the type is integer, double or string we can cast it to String and save it to the error database object
-            } else if ($returnType === 'integer' || $returnType === 'double' || $returnType === 'string') {
-                // We cut the string at 500 characters to not overcharge the database
-                $jobEntry->return = substr((string) $job['return'], 0, 500);
-            } else {
-                $jobEntry->return = 'Return value of job ' . $job['name'] . ' has the type ' . $returnType . ' - this type cannot be displayed as string (type error)';
-            }
-
-            $jobEntry->runtime = $job['runtime'];
-            $jobEntry->started_date = $job['started_date'];
-            $jobEntry->finished_date = $job['finished_date'];
-            $jobEntry->manager_id = $managerId;
-            $jobEntry->save();
-        }
-    }
 
     /**
      * Add a Monolog logger object and activate logging
@@ -572,6 +544,144 @@ class QueuedJobEngine {
     }
 
     /**
+     * Enable a job by job name
+     *
+     * @static
+     * @param  String $jobname The name of the job which should be enabled
+     * @param  boolean $enable The trigger for enable (true) or disable (false) the job with the given name
+     * @return void|false Retun void if job was enabled successfully or false if there was an problem with the parameters
+     */
+    public static function setEnableJob($jobname, $enable = true) {
+        self::initLoggerAndConfig();
+
+        // Check parameter
+        if (!is_bool($enable)) {
+            return false;
+        }
+
+        // Walk through the queuedjobs jobs and find the job with the given name
+        // Check if the name is unique
+        $allScheduledJobs = ScheduledJob::all();
+        foreach ($allScheduledJobs as $scheduledJob) {
+            if ($scheduledJob->name === $jobname) {
+                $scheduledJob->enabled=$enable;
+                $scheduledJob->save();
+
+                return null;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Disable a job by job name
+     *
+     * @static
+     * @param  String $jobname The name of the job which should be disabled
+     * @return void|false Retun void if job was disabled successfully or false if there was an problem with the parameters
+     */
+    public static function setDisableJob($jobname) {
+        return self::setEnableJob($jobname, false);
+    }
+
+    /**
+     * Is the given job by name enabled or disabled
+     *
+     * @static
+     * @param  String $jobname The name of the job which should be checked
+     * @return void|false Retun boolean if job was enabled (true) or disabled (false) or null if no job with the given name is found
+     */
+    public static function isJobEnabled($jobname) {
+        self::initLoggerAndConfig();
+
+
+        // Walk through the queuedjobs jobs and find the job with the given name
+        $allScheduledJobs = ScheduledJob::all();
+        foreach ($allScheduledJobs as $scheduledJob) {
+            if ($scheduledJob->name === $jobname) {
+                return $scheduledJob->enabled == 1 ? true : false;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Add more execution parameters to the current job
+     *
+     * @static
+     * @param  String $jobname    The job's name
+     * @param  String $moreParams Additional execution parameters
+     * @return void
+     */
+    public static function addMoreExecParams($jobname, $moreParams) {
+        // write new serialized vars to database!
+        if ($moreParams != NULL) {
+
+            // Walk through the queuedjobs jobs and find the job with the given name
+            $allScheduledJobs = ScheduledJob::all();
+            foreach ($allScheduledJobs as $scheduledJob) {
+                if ($scheduledJob->name === $jobname) {
+
+                    $serializedVars    = $scheduledJob->serializedVars;
+                    $unserializedVars = unserialize($serializedVars);
+
+                    $newFinalArray = array_merge($unserializedVars, $moreParams);
+
+                    $scheduledJob->serializedVars = serialize($newFinalArray);
+                    $scheduledJob->save();
+
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Save queuedjobs jobs from an array to the database
+     *
+     * @static
+     * @param  array $jobArray This array holds all the ran queuedjobs jobs which should be logged to database - entry structure must be job['name'], job['return'], job['runtime']
+     * @param  int $managerId The id of the saved manager database object which cares about the jobs
+     */
+    private static function saveJobsFromArrayToDatabase($jobArray, $managerId) {
+
+        foreach ($jobArray as $job) {
+            $jobEntry = new CompletedJob();
+            $jobEntry->name = $job['name'];
+
+            // Get the type of the returned value
+            $returnType = gettype($job['return']);
+
+            // If the type is NULL there was no error running this job - insert empty string
+            if ($returnType === 'NULL') {
+                $jobEntry->return = '';
+                // If the tyoe is boolean save the value as string
+            } else if ($returnType === 'boolean') {
+                if ($job['return']) {
+                    $jobEntry->return = 'true';
+                } else {
+                    $jobEntry->return = 'false';
+                }
+                // If the type is integer, double or string we can cast it to String and save it to the error database object
+            } else if ($returnType === 'integer' || $returnType === 'double' || $returnType === 'string') {
+                // We cut the string at 500 characters to not overcharge the database
+                $jobEntry->return = substr((string) $job['return'], 0, 500);
+            } else {
+                $jobEntry->return = 'Return value of job ' . $job['name'] . ' has the type ' . $returnType . ' - this type cannot be displayed as string (type error)';
+            }
+
+            $jobEntry->runtime = $job['runtime'];
+            $jobEntry->started_date = $job['started_date'];
+            $jobEntry->finished_date = $job['finished_date'];
+            $jobEntry->manager_id = $managerId;
+            $jobEntry->save();
+        }
+    }
+
+
+    /**
      * Delete old manager and job entries
      *
      * @static
@@ -614,73 +724,13 @@ class QueuedJobEngine {
     }
 
     /**
-     * Enable a job by job name
-     *
-     * @static
-     * @param  String $jobname The name of the job which should be enabled
-     * @param  boolean $enable The trigger for enable (true) or disable (false) the job with the given name
-     * @return void|false Retun void if job was enabled successfully or false if there was an problem with the parameters
-     */
-    public static function setEnableJob($jobname, $enable = true) {
-        // Check parameter
-        if (!is_bool($enable)) {
-            return false;
-        }
-
-        // Walk through the queuedjobs jobs and find the job with the given name
-        // Check if the name is unique
-        $allScheduledJobs = ScheduledJob::all();
-        foreach ($allScheduledJobs as $scheduledJob) {
-            if ($scheduledJob->name === $jobname) {
-                $scheduledJob->enabled=$enable;
-                $scheduledJob->save();
-
-                return null;
-            }
-        }
-
-        return false;
-    }
-    
-    /**
-     * Disable a job by job name
-     *
-     * @static
-     * @param  String $jobname The name of the job which should be disabled
-     * @return void|false Retun void if job was disabled successfully or false if there was an problem with the parameters
-     */
-    public static function setDisableJob($jobname) {
-        return self::setEnableJob($jobname, false);
-    }
-    
-    /**
-     * Is the given job by name enabled or disabled
-     *
-     * @static
-     * @param  String $jobname The name of the job which should be checked
-     * @return void|false Retun boolean if job was enabled (true) or disabled (false) or null if no job with the given name is found
-     */
-    public static function isJobEnabled($jobname) {
-        
-        // Walk through the queuedjobs jobs and find the job with the given name
-        $allScheduledJobs = ScheduledJob::all();
-        foreach ($allScheduledJobs as $scheduledJob) {
-            if ($scheduledJob->name === $jobname) {
-                return $scheduledJob->enabled == 1 ? true : false;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Checks if the given DateTime is *either* now due *or* has been due in the past (i. e. the $dateTime is overdue by now)
      *
      * @static
      * @param  DateTime $dateTime Date and Time of the job
      * @return void|false Return boolean if job is overdue or due by now
      */
-    public static function isJobOverDue ($dateTime) {
+    private static function isJobOverDue ($dateTime) {
 
         $currentTime = new \DateTime();
 
@@ -692,7 +742,7 @@ class QueuedJobEngine {
     }
 
 
-    public static function logJob ($scheduledJob) {
+    private static function logJob ($scheduledJob) {
 
         if ($scheduledJob instanceof ScheduledJob) {
 
@@ -749,11 +799,24 @@ class QueuedJobEngine {
         }
     }
 
-    static function setDefaultConfigValues() {
+    private static function setDefaultConfigValues() {
         \Config::set('queuedjobs::runInterval', 1);
         \Config::set('queuedjobs::databaseLogging', true);
         \Config::set('queuedjobs::logOnlyErrorJobsToDatabase', false);
         \Config::set('queuedjobs::deleteDatabaseEntriesAfter', 240);
+    }
+
+    private static function initLoggerAndConfig () {
+        QueuedJobEngine::setDefaultConfigValues();
+
+        if (self::$logger == NULL) {
+            $pathToLogfile = 'job-logger.txt';
+            $logger = new \Monolog\Logger('job-logger');
+            $logger->pushHandler(new \Monolog\Handler\StreamHandler($pathToLogfile, \Monolog\Logger::DEBUG));
+            self::setLogger($logger);
+        }
+
+
     }
 
 }

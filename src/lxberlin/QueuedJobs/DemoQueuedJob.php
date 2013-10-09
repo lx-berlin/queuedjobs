@@ -17,10 +17,17 @@ namespace lxberlin\QueuedJobs;
 
 class DemoQueuedJob implements QueuedJobExecutable {
 
-    static $name = 'DemoQueuedJob';
+    function getUniqueName($additionalExecParams, $logger) {
+        return 'DemoQueuedJob-'.$additionalExecParams['param1'].'-'.$additionalExecParams['param2'];
+    }
+
 
     function setup($additionalExecParams, $logger) {
         $logger->log('info', 'Setting up job ... ');
+
+        $moreParams = array ('xx'  => '35');
+        QueuedJobEngine::addMoreExecParams($this->getUniqueName($additionalExecParams, $logger), $moreParams);
+
     }
 
     function execute($additionalExecParams, $lastProgress, $logger) {
@@ -34,7 +41,7 @@ class DemoQueuedJob implements QueuedJobExecutable {
 
             // log current progress
             $logger->log('info', 'Logging Progress '.$i.' ... ');
-            QueuedJobEngine::updateProgress(self::$name, $i);
+            QueuedJobEngine::updateProgress($this->getUniqueName($additionalExecParams, $logger), $i);
         }
 
         return null;
