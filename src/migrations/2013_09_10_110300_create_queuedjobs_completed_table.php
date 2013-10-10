@@ -2,7 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 
-class CreateQueuedJobsCompletedTable extends Migration {
+class CreateQueuedjobsCompletedTable extends Migration {
 
     /**
      * Run the migrations.
