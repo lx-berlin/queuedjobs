@@ -21,7 +21,7 @@ class TestJob2 implements QueuedJobExecutable {
 
     static $name = 'TestJob2';
 
-    function setup($additionalExecParams, $logger) {
+    function preExecute($additionalExecParams, $logger) {
         $logger->log('info', 'Setting up job ... ');
     }
 
@@ -44,7 +44,7 @@ class TestJob2 implements QueuedJobExecutable {
 
     // this gets called at run time as step 3 (the process is 'setup'->'execute'->cleanUp)
     // don't forget to log your progress
-    function cleanUp($additionalExecParams, $logger) {
+    function postExecute($additionalExecParams, $logger) {
         $logger->log('info', 'Cleaning up job ... ');
     }
 

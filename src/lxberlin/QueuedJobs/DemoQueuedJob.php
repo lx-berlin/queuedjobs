@@ -22,7 +22,7 @@ class DemoQueuedJob implements QueuedJobExecutable {
     }
 
 
-    function setup($additionalExecParams, $logger) {
+    function preExecute($additionalExecParams, $logger) {
         $logger->log('info', 'Setting up job ... ');
 
         $moreParams = array ('xx'  => '35');
@@ -49,7 +49,7 @@ class DemoQueuedJob implements QueuedJobExecutable {
 
     // this gets called at run time as step 3 (the process is 'setup'->'execute'->cleanUp)
     // don't forget to log your progress
-    function cleanUp($additionalExecParams, $logger) {
+    function postExecute($additionalExecParams, $logger) {
         $logger->log('info', 'Cleaning up job ... ');
     }
 

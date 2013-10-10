@@ -31,7 +31,7 @@ interface QueuedJobExecutable {
      * @param $logger a logger
      * @return nothing
      */
-    function setup($additionalExecParams, $logger);
+    function preExecute($additionalExecParams, $logger);
 
     /**
      * This method should be used to execute the job - it contains the job's code
@@ -52,6 +52,6 @@ interface QueuedJobExecutable {
      * @param $logger a logger
      * @return nothing
      */
-    function cleanUp($additionalExecParams, $logger);
+    function postExecute($additionalExecParams, $logger);
 }
 
