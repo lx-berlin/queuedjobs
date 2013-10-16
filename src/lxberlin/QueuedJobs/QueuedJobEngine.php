@@ -273,7 +273,17 @@ class QueuedJobEngine {
                         // setup (execute only when first run (NOT with restarted jobs)):
                         if ($restartCount == 0) {
                             self::$logger->log('info', 'Now setting up job:'.self::logJob($scheduledJob));
-                            $myInstance->setup($vars, self::$logger);
+                            $myInstance->preExecute($vars, self::$logger);
+                        }
+
+                        // Because it could have been that the job added in preExecute more params, we have to reload the params:
+                        // So walk through the queuedjobs jobs and find the job with the given name
+                        $allAvailableJobs = ScheduledJob::all();
+                        foreach ($allAvailableJobs as $availableJob) {
+                            if ($availableJob->name === $name) {
+                                $serializedVars    = $availableJob->serializedVars;
+                                $vars = unserialize($serializedVars);
+                            }
                         }
 
                         // Get the start time of the job runtime
@@ -288,7 +298,7 @@ class QueuedJobEngine {
 
                         // clean up
                         self::$logger->log('info', 'Now cleaning up job:'.self::logJob($scheduledJob));
-                        $myInstance->cleanUp($vars, self::$logger);
+                        $myInstance->postExecute($vars, self::$logger);
 
                         // If the function returned not null then we assume that there was an error
                         if ($return !== null) {
