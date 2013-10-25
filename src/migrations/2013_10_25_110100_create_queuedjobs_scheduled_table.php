@@ -17,7 +17,7 @@ class CreateQueuedjobsScheduledTable extends Migration {
             $table->string('state');
             $table->integer('restart_count');
             $table->string('jobclass');
-            $table->string('serializedVars');
+            $table->text('serializedVars');
             $table->dateTime('execution_date');
             $table->dateTime('started_date');
             $table->integer('progress');

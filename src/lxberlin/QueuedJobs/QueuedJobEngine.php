@@ -153,7 +153,7 @@ class QueuedJobEngine {
      * @return array Return an array with the rundate, runtime, errors and a result queuedjobs job array (with name, function return value, rundate and runtime)
      */
     public static function run() {
-
+        echo "........";
         self::initLoggerAndConfig();
 
         // Get the rundate
@@ -185,7 +185,7 @@ class QueuedJobEngine {
         $beforeAll = microtime(true);
 
         while (true) {
-
+            echo "uuuu.";
             self::$logger->log('info', 'Now checking for executable jobs...');
 
             $allScheduledJobs = ScheduledJob::all();
@@ -203,6 +203,8 @@ class QueuedJobEngine {
                 $executionDate     = DateTime::createFromFormat('Y-m-d H:i:s', $scheduledJob->execution_date);
                 $progress          = $scheduledJob->progress;
                 $lastProgress      = $scheduledJob->last_progress;
+
+                echo "oooo".$name." ".$jobClass+$serializedVars;
 
                 self::$logger->log('info', 'Now checking job:'.self::logJob($scheduledJob));
 
@@ -222,7 +224,7 @@ class QueuedJobEngine {
                         // remove this job from the queue ...
                         self::remove($name);
                         // ... and then add it again with the current progress parameter:
-                        self::add($name, $executionDate, $jobClass, $serializedVars, $isEnabled, $progress, $restartCount + 1);
+                        self::add($executionDate, $jobClass, $serializedVars, $isEnabled, $progress, $restartCount + 1);
 
                         self::$logger->log('info', 'Requeued job:'.self::logJob($scheduledJob));
 
