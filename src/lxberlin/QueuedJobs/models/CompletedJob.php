@@ -19,7 +19,7 @@ class CompletedJob extends \Eloquent{
     
     protected $table = 'queuedjobs_completed_jobs';
     public $timestamps = false;
-    protected $fillable = array('name', 'return', 'started_date', 'finished_date', 'runtime');
+    protected $fillable = array('name', 'return', 'started_date', 'finished_date', 'runtime', 'final_progress');
     
     public function manager() {
         return $this->belongsTo('\lxberlin\QueuedJobs\models\Manager', 'manager_id');

@@ -54,7 +54,8 @@ This documentation will be updated in the near future.
 2.  Run the `composer update --no-dev` command in your shell from your `/laravel/` directory 
 3.  Add `'lxberlin\QueuedJobs\QueuedJobsServiceProvider'` to your `'providers'` array in the `app\config\app.php` file
 4.  Migrate the database with running the command `php artisan migrate --package="lxberlin/QueuedJobs"`
-5.  Now you can use `\lxberlin\QueuedJobs\QueuedJobEngine` everywhere for free
+5.  Set the global path to your log file via GLOBAL_PATH_TO_LOGFILE (if you plan to log to logger please use a unique prefix like the name of your job to allow for later distinguishing between log lines of different jobs in one log file)
+6.  Now you can use `\lxberlin\QueuedJobs\QueuedJobEngine` everywhere for free
 
 ---
 
@@ -69,10 +70,8 @@ As parameter the **name** of the job, the **execution date & time** and a **job 
 The **additionalExecParams** and **isEnabled** are optional.
 
 ```
-public static function add($name, $dateTime, $jobClass, $additionalExecParams = null, $isEnabled = true, $progress = -1, $restartCount = 0) {
+public static function add($dateTime, $jobClass, $additionalExecParams = null, $isEnabled = true, $progress = -1, $restartCount = 0) {
 ```
-
-The **name** is needed for identifying a job if an error appears and for logging.
 
 The given class defines the job and has four methods that have to be implemented.
 These methode maintain the job lifecycle and will be invoked if the expression details match with the current timestamp.
@@ -86,7 +85,7 @@ Later the job execution can be enabled very easily by giving a true boolean to t
 
 ```
 $params = array('param1' => '333', 'param2' => 22, 'param3' => true);
-QueuedJobEngine::add(TestJob1::$name, new \DateTime('2013-09-09 15:10:00'), 'lxberlin\QueuedJobs\tests\TestJob1', $params );
+QueuedJobEngine::add(new \DateTime('2013-09-09 15:10:00'), 'lxberlin\QueuedJobs\tests\TestJob1', $params );
 ```
 
 ---
@@ -112,6 +111,8 @@ $report = QueuedJobEngine::remove('Every minute');
 
 Each queued job must implement te QueuedJobExecutable interface.
 Please have a look at the DemoQueuedJob file in order to acquaint yourself with the interface methods:
+
+function getUniqueName($additionalExecParams, $logger);
 
 function setup($additionalExecParams, $logger);
 
@@ -184,7 +185,7 @@ Route::get('/QueuedJobs/run/c68pd2s4e363221a3064e8807da20s1sf', function () {
 
   // create job:
   $params = array('param1' => '333', 'param2' => 22, 'param3' => true);
-  QueuedJobEngine::add(TestJob1::$name, new \DateTime('2013-09-09 15:10:00'), 'lxberlin\QueuedJobs\tests\TestJob1', $params );
+  QueuedJobEngine::add(new \DateTime('2013-09-09 15:10:00'), 'lxberlin\QueuedJobs\tests\TestJob1', $params );
 
 
 

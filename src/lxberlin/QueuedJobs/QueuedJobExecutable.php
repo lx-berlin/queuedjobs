@@ -40,7 +40,7 @@ interface QueuedJobExecutable {
      *
      * @param $additionalExecParams the context variables
      * @param $lastProgress -1 if this job is executed for the first time; >=0 if this job is executed for another time (because it has been detected as stalled and now gets called again)
-     * @param $logger a logger
+     * @param $logger a logger: if you log to logger please use a unique prefix like the name of your job to allow for later distinguishing between log lines of different jobs in one log file
      * @return null, if everyhting is ok, otherwise return the error (this conforms to Liebig's job description)
      */
     function execute($additionalExecParams, $lastProgress, $logger);
