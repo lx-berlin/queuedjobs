@@ -39,10 +39,6 @@ class JobState {
  */
 class QueuedJobEngine {
 
-    /**
-     * @var string change this to the global path of your log file
-     */
-    const GLOBAL_PATH_TO_LOGFILE = '/Applications/MAMP/htdocs/rpm2/app/storage/logs/job-logger.txt';
 
     /**
      * @static
@@ -835,11 +831,16 @@ class QueuedJobEngine {
 
         if (self::$logger == NULL) {
             $logger = new \Monolog\Logger('job-logger');
-            $logger->pushHandler(new \Monolog\Handler\StreamHandler(self::GLOBAL_PATH_TO_LOGFILE, \Monolog\Logger::DEBUG));
+            $logger->pushHandler(new \Monolog\Handler\StreamHandler(self::getPathToLogfile(), \Monolog\Logger::DEBUG));
             self::setLogger($logger);
         }
+    }
 
-
+    /**
+     *  Get the global path to log file
+     */
+    private static function getPathToLogfile () {
+        return app_path().'/storage/logs/job-logger.txt';
     }
 
 }
