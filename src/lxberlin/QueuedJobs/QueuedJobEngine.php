@@ -87,7 +87,7 @@ class QueuedJobEngine {
         $allScheduledJobs = ScheduledJob::all();
         foreach ($allScheduledJobs as $scheduledJob) {
             if ($scheduledJob->name === $name) {
-                echo 'Could not add job -> duplicate name';
+                //echo 'Could not add job -> duplicate name';
                 self::$logger->log('info', 'GENERAL: Could not add job to database (name is not unique):'.self::logJob($scheduledJob));
                 return false;
             }
@@ -115,7 +115,7 @@ class QueuedJobEngine {
 
         self::$logger->log('info', 'GENERAL: Added job to database:'.self::logJob($scheduledJob));
 
-        echo 'Added job';
+        //echo 'Added job';
     }
 
     /**
@@ -134,14 +134,14 @@ class QueuedJobEngine {
         foreach ($allScheduledJobs as $scheduledJob) {
             if ($scheduledJob->name === $name) {
                 self::$logger->log('info', 'GENERAL: Found job to delete:'.self::logJob($scheduledJob));
-                echo 'Removed job';
+                //echo 'Removed job';
                 $scheduledJob->delete();
                 return null;
             }
         }
 
         self::$logger->log('info', 'GENERAL: Could not find job to delete:'.$name);
-        echo 'Could not find job';
+        //echo 'Could not find job';
 
         return false;
     }
@@ -155,7 +155,7 @@ class QueuedJobEngine {
      * @return array Return an array with the rundate, runtime, errors and a result queuedjobs job array (with name, function return value, rundate and runtime)
      */
     public static function run() {
-        echo "........";
+        //echo "........";
         self::initLoggerAndConfig();
 
         // Get the rundate
@@ -192,13 +192,10 @@ class QueuedJobEngine {
 
             $allScheduledJobs = ScheduledJob::all();
 
-            echo "uuuu.".$allScheduledJobs->isEmpty()."uuu   <br>";
             if ($allScheduledJobs->isEmpty()) break;
 
             $foundJobToExecute = false;
-            echo 'a';
             foreach ($allScheduledJobs as $scheduledJob) {
-                echo 'b';
                 $name              = $scheduledJob->name;
                 $isEnabled         = $scheduledJob->enabled;
                 $db_state          = $scheduledJob->state;
@@ -208,8 +205,6 @@ class QueuedJobEngine {
                 $executionDate     = DateTime::createFromFormat('Y-m-d H:i:s', $scheduledJob->execution_date);
                 $progress          = $scheduledJob->progress;
                 $lastProgress      = $scheduledJob->last_progress;
-
-                echo 'oooo'.$name.'-'.$jobClass.''.$serializedVars.'mmm';
 
                 self::$logger->log('info', 'GENERAL: Now checking job:'.self::logJob($scheduledJob));
 
@@ -310,14 +305,23 @@ class QueuedJobEngine {
                         self::$logger->log('info', 'GENERAL: Now cleaning up job:'.self::logJob($scheduledJob));
                         $myInstance->postExecute($vars, self::$logger);
 
+                        // because the progress could/should have changed in between, we re-get it:
+                        $finalProgress = $progress;
+                        foreach (ScheduledJob::all() as $scheduledJobToTest) {
+                            if ($scheduledJobToTest->name === $name) {
+                                $finalProgress = $scheduledJobToTest->progress;
+                                break;
+                            }
+                        }
+
                         // If the function returned not null then we assume that there was an error
                         if ($return !== null) {
                             // Add to error array
-                            array_push($errorJobs, array('name' => $name, 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne), 'final_progress' => $progress));
+                            array_push($errorJobs, array('name' => $name, 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne), 'final_progress' => $finalProgress));
                         }
 
                         // Push the information of the ran queuedjobs job to the allJobs array (including name, return value, runtime)
-                        array_push($allJobs, array('name' => $name, 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne), 'final_progress' => $progress));
+                        array_push($allJobs, array('name' => $name, 'return' => $return, 'started_date' => $started_date, 'finished_date' => new \DateTime(), 'runtime' => ($afterOne - $beforeOne), 'final_progress' => $finalProgress));
 
                         // finally remove the job from the queue.
                         self::remove($name);
@@ -334,7 +338,7 @@ class QueuedJobEngine {
         }
 
 
-        echo 'Done';
+       //echo 'Done';
 
         // Get the end runtime for all the queuedjobs jobs
         $afterAll = microtime(true);
