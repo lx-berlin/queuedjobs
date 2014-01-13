@@ -215,6 +215,7 @@ class QueuedJobEngine {
                     self::$logger->log('info', 'GENERAL: Job is already running :'.self::logJob($scheduledJob));
 
                     if ($progress <= $lastProgress) {
+                        echo 'HANGING'.$progress.' '.$lastProgress.' -> '.$name;
                         self::$logger->log('warning', 'GENERAL: Job seems to be stalled:'.self::logJob($scheduledJob));
 
                         // ATTENTION: In this case we assume that the job hangs for a long while or has even been completely killed by the operating system
@@ -224,7 +225,7 @@ class QueuedJobEngine {
                         // remove this job from the queue ...
                         self::remove($name);
                         // ... and then add it again with the current progress parameter:
-                        self::add($executionDate, $jobClass, $serializedVars, $isEnabled, $progress, $restartCount + 1);
+                        self::add($executionDate, $jobClass, unserialize($serializedVars), $isEnabled, $progress, $restartCount + 1);
 
                         self::$logger->log('info', 'GENERAL: Requeued job:'.self::logJob($scheduledJob));
 

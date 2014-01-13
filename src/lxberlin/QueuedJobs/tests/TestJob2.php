@@ -21,6 +21,10 @@ class TestJob2 implements QueuedJobExecutable {
 
     static $name = 'TestJob2';
 
+    function getUniqueName($additionalExecParams, $logger) {
+        return 'Test';
+    }
+
     function preExecute($additionalExecParams, $logger) {
         $logger->log('info', 'Setting up job ... ');
     }

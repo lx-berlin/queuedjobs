@@ -21,6 +21,10 @@ class TestStalledJob implements QueuedJobExecutable {
 
     static $name = 'TestStalledJob';
 
+    function getUniqueName($additionalExecParams, $logger) {
+        return 'Test';
+    }
+
     function preExecute($additionalExecParams, $logger) {
         $logger->log('info', 'Setting up job ... ');
     }

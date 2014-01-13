@@ -23,8 +23,6 @@ class Test {
 
     static function startTests1() {
 
-        QueuedJobEngine::setDefaultConfigValues();
-
         // this has to be done every time:
         $pathToLogfile = 'job-logger.txt';
         $logger = new \Monolog\Logger('job-logger');
