@@ -66,7 +66,7 @@ class QueuedJobEngine {
      */
     public static function add(\DateTime $dateTime, $jobClass, array $additionalExecParams = null,  $isEnabled = true, $progress = -1, $restartCount = 0) {
 
-        self::initLoggerAndConfig();
+        self::initDefaultLogger();
 
         // Check if the given datetime is set
         if (!isset($dateTime)) {
@@ -88,7 +88,7 @@ class QueuedJobEngine {
         foreach ($allScheduledJobs as $scheduledJob) {
             if ($scheduledJob->name === $name) {
                 //echo 'Could not add job -> duplicate name';
-                self::$logger->log('info', 'GENERAL: Could not add job to database (name is not unique):'.self::logJob($scheduledJob));
+                self::logToFile('info', 'GENERAL: Could not add job to database (name is not unique):'.self::logJob($scheduledJob));
                 return false;
             }
         }
@@ -113,7 +113,7 @@ class QueuedJobEngine {
         $scheduledJob->last_progress_date = new \DateTime();
         $scheduledJob->save();
 
-        self::$logger->log('info', 'GENERAL: Added job to database:'.self::logJob($scheduledJob));
+        self::logToFile('info', 'GENERAL: Added job to database:'.self::logJob($scheduledJob));
 
         //echo 'Added job';
     }
@@ -127,20 +127,20 @@ class QueuedJobEngine {
      */
     public static function remove($name) {
 
-        self::initLoggerAndConfig();
+        self::initDefaultLogger();
 
         $allScheduledJobs = ScheduledJob::all();
 
         foreach ($allScheduledJobs as $scheduledJob) {
             if ($scheduledJob->name === $name) {
-                self::$logger->log('info', 'GENERAL: Found job to delete:'.self::logJob($scheduledJob));
+                self::logToFile('info', 'GENERAL: Found job to delete:'.self::logJob($scheduledJob));
                 //echo 'Removed job';
                 $scheduledJob->delete();
                 return null;
             }
         }
 
-        self::$logger->log('info', 'GENERAL: Could not find job to delete:'.$name);
+        self::logToFile('info', 'GENERAL: Could not find job to delete:'.$name);
         //echo 'Could not find job';
 
         return false;
@@ -155,8 +155,7 @@ class QueuedJobEngine {
      * @return array Return an array with the rundate, runtime, errors and a result queuedjobs job array (with name, function return value, rundate and runtime)
      */
     public static function run() {
-        //echo "........";
-        self::initLoggerAndConfig();
+        self::initDefaultLogger();
 
         // Get the rundate
         $runDate = new \DateTime();
@@ -188,7 +187,7 @@ class QueuedJobEngine {
 
         while (true) {
 
-            self::$logger->log('info', 'GENERAL: Now checking for executable jobs...');
+            self::logToFile('info', 'GENERAL: Now checking for executable jobs...');
 
             $allScheduledJobs = ScheduledJob::all();
 
@@ -206,17 +205,17 @@ class QueuedJobEngine {
                 $progress          = $scheduledJob->progress;
                 $lastProgress      = $scheduledJob->last_progress;
 
-                self::$logger->log('info', 'GENERAL: Now checking job:'.self::logJob($scheduledJob));
+                self::logToFile('info', 'GENERAL: Now checking job:'.self::logJob($scheduledJob));
 
                 // if the job is already running then check if it's still progressing and not stalled.
                 // if the job is not already running, then try to start etc.:
                 if ($db_state == JobState::RUNNING) {
 
-                    self::$logger->log('info', 'GENERAL: Job is already running :'.self::logJob($scheduledJob));
+                    self::logToFile('info', 'GENERAL: Job is already running :'.self::logJob($scheduledJob));
 
                     if ($progress <= $lastProgress) {
                         echo 'HANGING'.$progress.' '.$lastProgress.' -> '.$name;
-                        self::$logger->log('warning', 'GENERAL: Job seems to be stalled:'.self::logJob($scheduledJob));
+                        self::logToFile('warning', 'GENERAL: Job seems to be stalled:'.self::logJob($scheduledJob));
 
                         // ATTENTION: In this case we assume that the job hangs for a long while or has even been completely killed by the operating system
                         // THE PROBLEM: if we think that this job has been executed and we then re-start it but the truth is that this job resumes after a while,
@@ -227,18 +226,18 @@ class QueuedJobEngine {
                         // ... and then add it again with the current progress parameter:
                         self::add($executionDate, $jobClass, unserialize($serializedVars), $isEnabled, $progress, $restartCount + 1);
 
-                        self::$logger->log('info', 'GENERAL: Requeued job:'.self::logJob($scheduledJob));
+                        self::logToFile('info', 'GENERAL: Requeued job:'.self::logJob($scheduledJob));
 
                     }
                     else {
 
-                        self::$logger->log('info', 'Trying to update last_progress for job:'.self::logJob($scheduledJob));
+                        self::logToFile('info', 'Trying to update last_progress for job:'.self::logJob($scheduledJob));
 
                         // now write last_progress to scheduled job:
                         foreach ($allScheduledJobs as $scheduledJob) {
                             if ($scheduledJob->name === $name) {
 
-                                self::$logger->log('info', 'Updated last_progress for job:'.self::logJob($scheduledJob));
+                                self::logToFile('info', 'Updated last_progress for job:'.self::logJob($scheduledJob));
 
                                 $scheduledJob->last_progress  = $progress;
                                 $scheduledJob->save();
@@ -253,7 +252,7 @@ class QueuedJobEngine {
 
                         $foundJobToExecute = true;
 
-                        self::$logger->log('info', 'GENERAL: Starting job:'.self::logJob($scheduledJob));
+                        self::logToFile('info', 'GENERAL: Starting job:'.self::logJob($scheduledJob));
 
                         $started_date = new \DateTime();
 
@@ -276,7 +275,7 @@ class QueuedJobEngine {
 
                         // setup (execute only when first run (NOT with restarted jobs)):
                         if ($restartCount == 0) {
-                            self::$logger->log('info', 'Now setting up job:'.self::logJob($scheduledJob));
+                            self::logToFile('info', 'Now setting up job:'.self::logJob($scheduledJob));
 
                             $myInstance->preExecute($vars, self::$logger);
                         }
@@ -295,7 +294,7 @@ class QueuedJobEngine {
                         $beforeOne = microtime(true);
 
                         // Run the function and save the return to $return - all the magic goes here
-                        self::$logger->log('info', 'GENERAL: Now executing job:'.self::logJob($scheduledJob));
+                        self::logToFile('info', 'GENERAL: Now executing job:'.self::logJob($scheduledJob));
 
                         $return = $myInstance->execute($vars, $progress, self::$logger);
 
@@ -303,7 +302,7 @@ class QueuedJobEngine {
                         $afterOne = microtime(true);
 
                         // clean up
-                        self::$logger->log('info', 'GENERAL: Now cleaning up job:'.self::logJob($scheduledJob));
+                        self::logToFile('info', 'GENERAL: Now cleaning up job:'.self::logJob($scheduledJob));
                         $myInstance->postExecute($vars, self::$logger);
 
                         // because the progress could/should have changed in between, we re-get it:
@@ -326,7 +325,7 @@ class QueuedJobEngine {
 
                         // finally remove the job from the queue.
                         self::remove($name);
-                        self::$logger->log('info', 'GENERAL: Now removed job from queue:'.self::logJob($scheduledJob));
+                        self::logToFile('info', 'GENERAL: Now removed job from queue:'.self::logJob($scheduledJob));
 
                         // after one job has been executed try to find the next one (because another manager could have started some jobs in the meantime):
                         break;
@@ -356,16 +355,16 @@ class QueuedJobEngine {
             $inTime = false;
             // Check if the run between this run and the last run is in good time (30 seconds tolerance) or not and log this event
             if ($timeBetween === -1) {
-                self::$logger->log('warning', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' has no previous ran jobs.');
+                self::logToFile('warning', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' has no previous ran jobs.');
                 $inTime = -1;
             } elseif (($runInterval * 60) - $timeBetween <= -30) {
-                self::$logger->log('error', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' is with ' . $timeBetween . ' seconds between last run too late.');
+                self::logToFile('error', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' is with ' . $timeBetween . ' seconds between last run too late.');
                 $inTime = false;
             } elseif (($runInterval * 60) - $timeBetween >= 30) {
-                self::$logger->log('error', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' is with ' . $timeBetween . ' seconds between last run too fast.');
+                self::logToFile('error', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' is with ' . $timeBetween . ' seconds between last run too fast.');
                 $inTime = false;
             } else {
-                self::$logger->log('info', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' is with ' . $timeBetween . ' seconds between last run in time.');
+                self::logToFile('info', 'GENERAL: QueuedJobs run with manager id ' . $cronmanager->id . ' is with ' . $timeBetween . ' seconds between last run in time.');
                 $inTime = true;
             }
 
@@ -379,18 +378,18 @@ class QueuedJobEngine {
 
             // Log the result of the queuedjobs run
             if (empty($errorJobs)) {
-                self::$logger->log('info', 'GENERAL: The queuedjobs run with the manager id ' . $cronmanager->id . ' was finished without errors.');
+                self::logToFile('info', 'GENERAL: The queuedjobs run with the manager id ' . $cronmanager->id . ' was finished without errors.');
             } else {
-                self::$logger->log('error', 'GENERAL: The queuedjobs run with the manager id ' . $cronmanager->id . ' was finished with ' . count($errorJobs) . ' errors.');
+                self::logToFile('error', 'GENERAL: The queuedjobs run with the manager id ' . $cronmanager->id . ' was finished with ' . count($errorJobs) . ' errors.');
             }
 
             // If database logging is disabled
         } else {
             // Log the status of the queuedjobs job run without the cronmanager id
             if (empty($errorJobs)) {
-                self::$logger->log('info', 'GENERAL: QueuedJobs run was finished without errors.');
+                self::logToFile('info', 'GENERAL: QueuedJobs run was finished without errors.');
             } else {
-                self::$logger->log('error', 'GENERAL: QueuedJobs run was finished with ' . count($errorJobs) . ' errors.');
+                self::logToFile('error', 'GENERAL: QueuedJobs run was finished with ' . count($errorJobs) . ' errors.');
             }
         }
 
@@ -409,9 +408,9 @@ class QueuedJobEngine {
      */
     public static function updateProgress($jobName, $progress) {
 
-        self::initLoggerAndConfig();
+        self::initDefaultLogger();
 
-        self::$logger->log('info', 'GENERAL: Updating progress for job:'.$jobName.': '.$progress);
+        self::logToFile('info', 'GENERAL: Updating progress for job:'.$jobName.': '.$progress);
 
         $allScheduledJobs = ScheduledJob::all();
         foreach ($allScheduledJobs as $scheduledJob) {
@@ -448,23 +447,6 @@ class QueuedJobEngine {
         return self::$logger;
     }
 
-
-
-    /**
-     * Enable or disable database logging - start value is true
-     *
-     * @static
-     * @param  boolean $bool Set to enable or disable database logging
-     * @return void|false Retun void if value was set successfully or false if there was an problem with the parameter
-     */
-    public static function setDatabaseLogging($bool) {
-        if (is_bool($bool)) {
-            \Config::set('queuedjobs::databaseLogging', $bool);
-        } else {
-            return false;
-        }
-    }
-
     /**
      * Is logging to database true or false
      * 
@@ -476,22 +458,6 @@ class QueuedJobEngine {
             return $databaseLogging;
         } else {
             return null;
-        }
-    }
-
-    /**
-     * Enable or disable logging error jobs to database only - start value is true
-     * NOTE: Works only if database logging is enabled
-     *
-     * @static
-     * @param  boolean $bool Set to enable or disable logging error jobs only
-     * @return void|false Retun void if value was set successfully or false if there was an problem with the parameter
-     */
-    public static function setLogOnlyErrorJobsToDatabase($bool) {
-        if (is_bool($bool)) {
-            \Config::set('queuedjobs::logOnlyErrorJobsToDatabase', $bool);
-        } else {
-            return false;
         }
     }
 
@@ -510,21 +476,6 @@ class QueuedJobEngine {
     }
 
     /**
-     * Set the run interval - the run interval is the time between two queuedjobs job route calls
-     *
-     * @static
-     * @param  int $minutes Set the interval in minutes
-     * @return void|false Retun void if value was set successfully or false if there was an problem with the parameter
-     */
-    public static function setRunInterval($minutes) {
-        if (is_int($minutes)) {
-            \Config::set('queuedjobs::runInterval', $minutes);
-        } else {
-            return false;
-        }
-    }
-
-    /**
      * Get the current run interval value
      * 
      * @return int|null Return the current interval value in minutes or null if there was no value set or the value type is not equals integer
@@ -535,21 +486,6 @@ class QueuedJobEngine {
             return $interval;
         } else {
             return null;
-        }
-    }
-
-    /**
-     * Set the delete time of old database entries in hours 
-     *
-     * @static
-     * @param  int $hours Set the delete time in hours
-     * @return void|false Return void if value was set successfully or false if there was an problem with the parameter
-     */
-    public static function setDeleteDatabaseEntriesAfter($hours = 0) {
-        if (is_int($hours)) {
-            \Config::set('queuedjobs::deleteDatabaseEntriesAfter', $hours);
-        } else {
-            return false;
         }
     }
 
@@ -576,7 +512,7 @@ class QueuedJobEngine {
      * @return void|false Retun void if job was enabled successfully or false if there was an problem with the parameters
      */
     public static function setEnableJob($jobname, $enable = true) {
-        self::initLoggerAndConfig();
+        self::initDefaultLogger();
 
         // Check parameter
         if (!is_bool($enable)) {
@@ -617,7 +553,7 @@ class QueuedJobEngine {
      * @return void|false Retun boolean if job was enabled (true) or disabled (false) or null if no job with the given name is found
      */
     public static function isJobEnabled($jobname) {
-        self::initLoggerAndConfig();
+        self::initDefaultLogger();
 
 
         // Walk through the queuedjobs jobs and find the job with the given name
@@ -719,7 +655,7 @@ class QueuedJobEngine {
         // If the value is not set or equals 0 delete old database entries is disabled
         if (!empty($deleteDatabaseEntriesAfter)) {
 
-            self::$logger->log('info', 'GENERAL: Deleting old db entries ... ');
+            self::logToFile('info', 'GENERAL: Deleting old db entries ... ');
 
             // Get the current time and subtract the hour values
             $now = new \DateTime();
@@ -761,7 +697,7 @@ class QueuedJobEngine {
 
         $result = $dateTime <= $currentTime;
 
-        self::$logger->log('info', 'GENERAL: Job is overdue: '.$currentTime->format('Y-m-d H:i:s').' runDate= '.$dateTime->format('Y-m-d H:i:s').' => '.$result);
+        self::logToFile('info', 'GENERAL: Job is overdue: '.$currentTime->format('Y-m-d H:i:s').' runDate= '.$dateTime->format('Y-m-d H:i:s').' => '.$result);
 
         return $result;
     }
@@ -824,28 +760,19 @@ class QueuedJobEngine {
         }
     }
 
-    private static function setDefaultConfigValues() {
-        \Config::set('queuedjobs::runInterval', 1);
-        \Config::set('queuedjobs::databaseLogging', true);
-        \Config::set('queuedjobs::logOnlyErrorJobsToDatabase', false);
-        \Config::set('queuedjobs::deleteDatabaseEntriesAfter', 240);
-    }
-
-    private static function initLoggerAndConfig () {
-        QueuedJobEngine::setDefaultConfigValues();
-
+    private static function initDefaultLogger () {
         if (self::$logger == NULL) {
             $logger = new \Monolog\Logger('job-logger');
-            $logger->pushHandler(new \Monolog\Handler\StreamHandler(self::getPathToLogfile(), \Monolog\Logger::DEBUG));
+            $logger->pushHandler(new \Monolog\Handler\StreamHandler(\Config::get('queuedjobs::pathToLogfile'), \Monolog\Logger::DEBUG));
             self::setLogger($logger);
         }
     }
 
-    /**
-     *  Get the global path to log file
-     */
-    private static function getPathToLogfile () {
-        return app_path().'/storage/logs/job-logger.txt';
+    private static function logToFile ($cat, $text) {
+        $isFileLoggingEnabled = \Config::get('fileLogging');
+        if ($isFileLoggingEnabled) {
+            self::logToFile($cat, $text);
+        }
     }
 
 }
