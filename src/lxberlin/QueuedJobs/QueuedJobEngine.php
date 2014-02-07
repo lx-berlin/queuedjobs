@@ -230,7 +230,7 @@ class QueuedJobEngine {
                         if ($emailNotifications) {
                             $addressee = \Config::get('queuedjobs::emailNotificationsReceiverAddress');
                             $contextVars = ['infos' => self::logJob($scheduledJob)];
-                            \Mail::send('queuedjobs::mailTemplate', $contextVars, function($message) use ($addressee) {
+                            \Mail::queue('queuedjobs::mailTemplate', $contextVars, function($message) use ($addressee) {
                                 $message->to($addressee, "Queued Jobs Admin")->subject('QueuedJobs: Job requeued!');
                             });
                         }
