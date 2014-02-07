@@ -33,6 +33,7 @@ class QueuedJobServiceProvider extends ServiceProvider {
      */
     public function boot() {
         $this->package('lx-berlin/queuedjobs');
+        \View::addNamespace('queuedjobs', __DIR__.'/views');
     }
 
     /**

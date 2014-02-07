@@ -18,6 +18,13 @@ return array(
     'fileLogging' => true,
 
     // the path to where the log file is written:
-    'pathToLogfile' => app_path().'/storage/logs/job-logger.txt'
+    'pathToLogfile' => storage_path().'/logs/job-logger.txt',
+
+    // if you want to receive email notifications (e. g. in case of a stalled job)
+    // ATTENTION: please make sure you have set up the configs in mail.php and queue.php before
+    'emailNotifications' => true,
+
+    // where do you want the emails to be sent to?
+    'emailNotificationsReceiverAddress' => 'g.matz@gmx.de'
     
 );

@@ -82,9 +82,9 @@ class QueuedJobEngine {
         $job = new $jobClass;
         $name= $job->getUniqueName($additionalExecParams, self::$logger);
 
-
         // Check if the name is unique
         $allScheduledJobs = ScheduledJob::all();
+
         foreach ($allScheduledJobs as $scheduledJob) {
             if ($scheduledJob->name === $name) {
                 //echo 'Could not add job -> duplicate name';
@@ -225,6 +225,15 @@ class QueuedJobEngine {
                         self::remove($name);
                         // ... and then add it again with the current progress parameter:
                         self::add($executionDate, $jobClass, unserialize($serializedVars), $isEnabled, $progress, $restartCount + 1);
+
+                        $emailNotifications = \Config::get('queuedjobs::emailNotifications');
+                        if ($emailNotifications) {
+                            $addressee = \Config::get('queuedjobs::emailNotificationsReceiverAddress');
+                            $contextVars = ['infos' => self::logJob($scheduledJob)];
+                            \Mail::send('queuedjobs::mailTemplate', $contextVars, function($message) use ($addressee) {
+                                $message->to($addressee, "Queued Jobs Admin")->subject('QueuedJobs: Job requeued!');
+                            });
+                        }
 
                         self::logToFile('info', 'GENERAL: Requeued job:'.self::logJob($scheduledJob));
 
@@ -707,12 +716,13 @@ class QueuedJobEngine {
 
         if ($scheduledJob instanceof ScheduledJob) {
 
-            $result = ' name => '.$scheduledJob->name.
-                ' enabled => '.$scheduledJob->enabled.
-                ' state => '.$scheduledJob->state.
-                ' restart_count => '.$scheduledJob->restart_count.
-                ' job_class => '.$scheduledJob->jobclass.
-                ' serialized_vars => '.$scheduledJob->serializedVars.' started_date => ';
+            $result = ' name => '.$scheduledJob->name.' <br>'.
+                ' enabled => '.$scheduledJob->enabled.' <br>'.
+                ' state => '.$scheduledJob->state.' <br>'.
+                ' restart_count => '.$scheduledJob->restart_count.' <br>'.
+                ' job_class => '.$scheduledJob->jobclass.' <br>'.
+                ' serialized_vars => '.$scheduledJob->serializedVars.' <br>'.
+                ' started_date => '.' <br>';
 
             $startedDateStr = 'NULL';
             if ($scheduledJob->started_date != null) {
@@ -769,9 +779,9 @@ class QueuedJobEngine {
     }
 
     private static function logToFile ($cat, $text) {
-        $isFileLoggingEnabled = \Config::get('fileLogging');
+        $isFileLoggingEnabled = \Config::get('queuedjobs::fileLogging');
         if ($isFileLoggingEnabled) {
-            self::logToFile($cat, $text);
+            self::$logger->log($cat, $text);
         }
     }
 
