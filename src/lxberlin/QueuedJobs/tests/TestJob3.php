@@ -22,7 +22,7 @@ class TestJob3 implements QueuedJobExecutable {
     static $name = 'TestJob3';
 
     function getUniqueName($additionalExecParams, $logger) {
-        return 'Test';
+        return self::$name;
     }
 
     function preExecute($additionalExecParams, $logger) {

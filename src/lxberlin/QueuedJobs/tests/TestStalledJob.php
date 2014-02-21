@@ -22,7 +22,7 @@ class TestStalledJob implements QueuedJobExecutable {
     static $name = 'TestStalledJob';
 
     function getUniqueName($additionalExecParams, $logger) {
-        return 'Test';
+        return self::$name;
     }
 
     function preExecute($additionalExecParams, $logger) {
@@ -33,14 +33,14 @@ class TestStalledJob implements QueuedJobExecutable {
         $logger->log('info', 'Executing job ... ');
 
 
-        for ($i = $lastProgress + 1;  $i < 500; $i++) {
+        for ($i = $lastProgress + 1;  $i < 400; $i++) {
 
             // do something useful here
             sleep(1);
 
             // SIMULATES A JOB THAT HANGS 20 SECONDS AFTER START OR RESTART!:
             if ($i>$lastProgress + 20) {
-                sleep(1000);
+                sleep(10000);
             }
 
             // log current progress
