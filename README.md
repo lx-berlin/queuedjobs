@@ -52,7 +52,7 @@ This documentation will be updated in the near future.
 
 1.  Add `"lx-berlin/queuedjobs": "dev-master"` to your `/laravel/composer.json` file at the `"require":` section (Find more about composer at http://getcomposer.org/)
 2.  Run the `composer update --no-dev` command in your shell from your `/laravel/` directory 
-3.  Add `'lxberlin\QueuedJobs\QueuedJobsServiceProvider'` to your `'providers'` array in the `app\config\app.php` file
+3.  Add `'lxberlin\QueuedJobs\QueuedJobServiceProvider'` to your `'providers'` array in the `app\config\app.php` file
 4.  Migrate the database with running the command `php artisan migrate --package="lxberlin/QueuedJobs"`
 5.  Set the global path to your log file via GLOBAL_PATH_TO_LOGFILE (if you plan to log to logger please use a unique prefix like the name of your job to allow for later distinguishing between log lines of different jobs in one log file)
 6.  Now you can use `\lxberlin\QueuedJobs\QueuedJobEngine` everywhere for free
